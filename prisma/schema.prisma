@@ -1,0 +1,46 @@
+// MiTV 控制中心 — Prisma schema（SQLite，模型清单见 docs/architecture.md#数据层）
+// 运行时数据库文件在应用 userData 目录；开发期用 prisma/dev.db
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 设备注册表（对应 docs/design/initial-plan.md §5.1 MonitorDevice 的持久化部分）
+model Device {
+  id        String   @id // 稳定 ID：优先 EDID serial
+  name      String
+  channels  String // JSON：mitv/adb/ddc 三通道绑定与状态
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 画质预设：values 为 JSON 字符串 { settings_key: value }
+model Preset {
+  id        String   @id @default(cuid())
+  name      String
+  values    String
+  createdAt DateTime @default(now())
+}
+
+// 操作审计：与 UI/CLI/MCP 同一动作面，记录 applied/verified 语义
+model OperationLog {
+  id        String   @id @default(cuid())
+  deviceId  String
+  action    String
+  payload   String // JSON
+  applied   Boolean
+  verified  Boolean
+  createdAt DateTime @default(now())
+}
+
+// 应用配置 KV
+model Setting {
+  key   String @id
+  value String
+}
