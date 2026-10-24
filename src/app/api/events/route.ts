@@ -1,9 +1,11 @@
 import { stateHub } from '@/core/services/state-hub';
+import { agentAllowed } from '@/app/api/agent-guard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
+    if (!(await agentAllowed(req))) return new Response("forbidden", { status: 403 });
   const encoder = new TextEncoder();
   let cleanup: (() => void) | null = null;
   const stream = new ReadableStream({

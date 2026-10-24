@@ -170,6 +170,16 @@ interface MonitorDevice {
 7. 通道↔显示器配对：IORegistry 邻近遍历（位置→厂商/产品/序列号→遍历序兜底），显示拓扑变化全量刷新映射——**绝不使用显示器编号索引**（m1ddc 在本机的失败根源）。
 8. 每显示器独立串行队列：一台卡死不拖累另一台。
 
+**三平台传输实现（2026-10-25 定稿）**：
+
+| 平台 | 传输 | 自研代码 |
+| --- | --- | --- |
+| macOS | IOKit IOAVService（Apple Silicon 唯一正规 DDC 通道） | **自研 Swift 助手 `ddc-helper/`**（单文件 swiftc 编译随应用打包）：IORegistry 邻近遍历做 DDC 通道↔显示器精确配对（修 m1ddc 多屏配错对的根因）+ 每应答验 DDC/CI 校验和（垃圾帧全拒）+ `list/get/set` JSON CLI |
+| Windows | Win32 dxva2.dll Get/SetVCPValue（系统中介） | node-ddcci（N-API 预编译），零自研 |
+| Linux | spawn ddcutil（社区怪癖库） | 接口预留，暂不打包 |
+
+Node 侧职责不变：缓存真源、拖动合并、失败隔离——helper 只做传输。效果边界：写入 100% 可靠；读取「合法或如实未确认」，不再出现假值。
+
 ### 5.5 UI 状态同步
 
 - 服务端 StateHub 持有全部设备状态（含缓存真源）；UI 经 SSE 订阅，REST/CLI/MCP 复用同一状态层（手机与桌面看到一致状态）。
@@ -180,11 +190,21 @@ interface MonitorDevice {
 - 面板聚焦时：方向键→遥控方向，Enter→OK，Esc→返回，Home→主页，PgUp/PgDn→音量。
 - 全局快捷键（P1）：可配置组合，默认 `⌥⌘V/±` 音量、`⌥⌘B/±` 亮度、`⌥⌘M` 静音。
 
-### 5.7 手机远程（P1）
+### 5.7 手机远程与 PWA（P1）
 
-- API 路由（`src/app/api/*`）：`GET /api/state`、`GET /api/events`（SSE）、`POST /api/volume {value}`、`POST /api/brightness {display, value}`、`POST /api/key {key}`、`POST /api/preset/:id`；鉴权 `Authorization: Bearer <token>` 中间件。
+- **PWA**：`src/app/manifest.ts` 生成 webmanifest（name/short_name、`display: standalone`、主题色 #131318、192/512 图标）；`layout.tsx` 补 `appleWebApp` 元数据——手机「添加到主屏幕」即独立全屏应用。
+- API 路由（`src/app/api/*`）：`GET /api/state`、`GET /api/events`（SSE）、`POST /api/volume {value}`、`POST /api/brightness {display, value}`、`POST /api/key {key}`、`POST /api/preset/:id`、`POST /api/sync`；鉴权见下。
+- **来源鉴权（agent-guard）**：Host 为 localhost/127.0.0.1 的请求直接放行（本机 UI 零打扰）；其余来源必须 `Authorization: Bearer <令牌>`，否则 403（SSE 同样校验）——服务始终绑 0.0.0.0，无需重启切绑定。
+- 令牌：首次启用随机生成存 Setting 表；设置→手机远程 显示/复制/重生成（重生成旧令牌即失效）。仓库中无任何密钥。
 - 手机浏览器打开 `http://<电脑IP>:8666`，输入令牌后可「添加到主屏幕」当 PWA。
-- 安全：令牌必须、失败限速、可一键关闭远程。
+
+### 5.9 真机状态同步 ✅
+
+- 场景：程序未运行期间显示器可能被遥控器/OSD/其他工具改动 → 需要读回真机状态而不是显示缓存假设值。
+- 触发：`POST /api/sync`（可指定 device）+ `/api/state` 首次 GET 触发后台同步 + 设置→设备「同步真机状态」按钮；完成后经 SSE 推送全部客户端。
+- 读回：音量(6095 getvolume)；画面全项/游戏/灯效(ADB settingsGetMany 单 shell 批量 + batchGet 寄存器)；信号源(`mitv.tvplayer.hdmi.last.source`，尽力)；5K 亮度(DDC 重试读，失败保持缓存)。
+- 读不到（如实标注）：静音状态（6095 无回读接口）、电源开关（推断：6095 不可达即 offline）。
+- 值冲突策略：寄存器 batchGet 优先（硬件真值），settings 兜底；反向映射未知值保留现状不猜。
 
 ### 5.8 Agent 接入：CLI + MCP（P2）
 

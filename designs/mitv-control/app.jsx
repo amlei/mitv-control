@@ -9,7 +9,6 @@ const REMOTE_KEYLIST = [
   { action: '菜单', keys: 'M' },
   { action: '电源', keys: 'P' },
   { action: '音量±', keys: '+ / −' },
-  { action: '小爱', keys: 'A' },
   { action: 'TV', keys: 'T' },
   { action: '退出接管', keys: 'Esc' },
 ];
@@ -192,8 +191,8 @@ function App() {
             <div className="rr-top">
               <button type="button" className="rrbtn rrpower" aria-label="电源" title="电源"
                 onClick={(e) => { e.stopPropagation(); press('电源', 'power'); }}><Icon name="power" size={16} /></button>
-              <button type="button" className="rrbtn" aria-label="小爱同学" title="小爱同学（语音）"
-                onClick={(e) => { e.stopPropagation(); press('小爱', 'xiaoai'); }}><Icon name="sparkles" size={16} /></button>
+              <button type="button" className="rrbtn rrdisabled" aria-label="小爱同学" title="需实体遥控器（蓝牙链路）触发，软件模拟的四种路径均无效"
+                disabled><Icon name="sparkles" size={16} /></button>
             </div>
             <div className="rr-dpad">
               <button type="button" className="rredge up" aria-label="上" onClick={(e) => { e.stopPropagation(); press('上', 'up'); }}><Icon name="chevronUp" size={15} /></button>

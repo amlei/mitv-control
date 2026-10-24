@@ -1,0 +1,18 @@
+appId: com.mitv.control
+productName: MiTV 控制中心
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist-electron/**/*
+asar: true
+mac:
+  target:
+    - dir
+  category: public.app-category.utilities
+  identity: null
+  icon: build/icon.png
+win:
+  target:
+    - dir
+  icon: build/icon.png

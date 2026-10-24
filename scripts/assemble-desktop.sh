@@ -1,0 +1,15 @@
+#!/bin/zsh
+set -e
+APP="release/mac-arm64/MiTV 控制中心.app"
+RES="$APP/Contents/Resources"
+rm -rf "$RES/standalone"
+ditto .next/desktop-bundle "$RES/standalone"
+ditto .next/static "$RES/standalone/.next/static"
+mkdir -p "$RES/standalone/public/icons"
+ditto public/icons "$RES/standalone/public/icons"
+ditto resources "$RES/resources"
+ditto ddc-helper/ddc-helper "$RES/resources/ddc-helper/ddc-helper"
+cp prisma/dev.db "$RES/db-template.db"
+cp build/tray.png "$RES/tray.png"
+echo "组装完成"
+du -sh "$APP"

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,7 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MiTV 控制中心",
   description: "Redmi G Pro 27U 显示器操控中心",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "MiTV 控制中心", statusBarStyle: "black-translucent" },
 };
+
+export const viewport: Viewport = { themeColor: "#131318" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

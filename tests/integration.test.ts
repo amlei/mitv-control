@@ -52,7 +52,7 @@ function jsonReq(path: string, body: unknown): Request {
 
 describe('API 集成（mock 6095）', () => {
   test('state 路由返回种子设备并初始化预设', async () => {
-    const res = await getState() as Response;
+    const res = await getState(new Request('http://localhost/api/state')) as Response;
     const data = await res.json() as { devices: { id: string }[] };
     expect(Array.isArray(data.devices)).toBe(true);
   });
@@ -85,7 +85,7 @@ describe('API 集成（mock 6095）', () => {
   test('预设 CRUD + 套用（无 ADB 能力时如实返回 applied:false）', async () => {
     const created = await (postPresets(jsonReq('/api/presets', { name: '集成测试预设', values: { brightness: 30, colorTemp: '暖色' } })) as Promise<Response>);
     expect(created.status).toBe(200);
-    const list = await (getPresets() as Promise<Response>).then((r) => r.json()) as { presets: { id: string; name: string }[] };
+    const list = await (getPresets(new Request('http://localhost/api/presets')) as Promise<Response>).then((r) => r.json()) as { presets: { id: string; name: string }[] };
     const target = list.presets.find((p) => p.name === '集成测试预设');
     expect(target).toBeDefined();
     const applied = await (postPresets(jsonReq('/api/presets', { action: 'apply', id: target!.id, device: 'mock' })) as Promise<Response>).then((r) => r.json());
@@ -93,12 +93,12 @@ describe('API 集成（mock 6095）', () => {
     expect(applied.applied).toBe(false);
     const del = await (postPresets(jsonReq('/api/presets', { action: 'delete', id: target!.id })) as Promise<Response>);
     expect(del.status).toBe(200);
-    const list2 = await (getPresets() as Promise<Response>).then((r) => r.json()) as { presets: { name: string }[] };
+    const list2 = await (getPresets(new Request('http://localhost/api/presets')) as Promise<Response>).then((r) => r.json()) as { presets: { name: string }[] };
     expect(list2.presets.some((p) => p.name === '集成测试预设')).toBe(false);
   });
 
   test('SSE：/api/events 首帧推送当前状态', async () => {
-    const res = await getEvents() as Response;
+    const res = await getEvents(new Request('http://localhost/api/events')) as Response;
     expect(res.headers.get('Content-Type')).toBe('text/event-stream');
     const reader = res.body!.getReader();
     const { value } = await reader.read();

@@ -1,7 +1,7 @@
 // 亮度/画面/游戏/灯效：按设备能力路由到 ADB（智能款）或 DDC（普通款）
 // 写入链（ADB）：settings put 双键 → JNI set → PIC_MODE_CHANGED 广播 → batchGet 校验
 import { AdbClient } from '../channels/adb';
-import { getLuminance, listDisplays, setLuminance } from '../channels/ddc';
+import { firstAckedChannel, helperLuminance, helperPath, helperSetLuminance } from '../channels/ddc';
 import {
   MITV_JAR_CACHE_DIR, tvServiceAppProcessCmd,
   COLOR_TEMP_TO_MTK, COLOR_TEMP_VALUES, CLARITY_VALUES, DIMMING_VALUES, GAMUT_VALUES,
@@ -13,15 +13,11 @@ import {
 import { stateHub, type GameState, type LightState, type PictureState } from './state-hub';
 import type { ApplyResult } from '../types';
 
-/** ddc 目标缓存：设备 id → m1ddc display index（启动时探测一次） */
-const ddcTargets = new Map<string, number>();
-async function ddcIndexFor(id: string): Promise<number | null> {
-  if (ddcTargets.has(id)) return ddcTargets.get(id)!;
-  const displays = await listDisplays().catch(() => []);
-  // 实测：响应 DDC 的「Mi Monitor」即目标；无法自动区分时取第一个可读亮度的
-  for (const d of displays) {
-    const v = await getLuminance(d.index);
-    if (v != null) { ddcTargets.set(id, d.index); return d.index; }
+/** DDC 目标缓存：设备 id → 配对通道（helper 优先，30s 刷新） */
+async function ddcTargetFor(id: string): Promise<{ vendor: number; model: number } | null> {
+  if (helperPath()) {
+    const ch = await firstAckedChannel();
+    if (ch) return ch;
   }
   return null;
 }
@@ -48,13 +44,17 @@ export async function setBrightness(id: string, v: number): Promise<ApplyResult>
     return adbBrightness(dev.ip, v);
   }
   if (dev.caps.some((c) => c.key === 'DDC')) {
-    const idx = await ddcIndexFor(id);
-    if (idx != null) {
-      const ok = await setLuminance(idx, v);
-      return { applied: ok, verified: ok, source: 'device' };
+    const target = await ddcTargetFor(id);
+    if (target) {
+      const ok = await helperSetLuminance(target.vendor, target.model, v);
+      const read = await helperLuminance(target.vendor, target.model).catch(() => null);
+      return { applied: ok, verified: ok && read != null && Math.abs(read - v) <= 1, source: 'device' };
     }
   }
   return { applied: false, verified: false, source: 'cache' };
+}
+
+/** 画面设置  return { applied: false, verified: false, source: 'cache' };
 }
 
 /** 画面设置：全部走 Toolbox 实测写路径（JNI + settings 成对 + 广播），并读回校验 */
@@ -213,14 +213,10 @@ export async function setSource(id: string, source: string): Promise<ApplyResult
 export async function pressKey(id: string, key: string): Promise<ApplyResult> {
   const dev = stateHub.get(id);
   if (!dev || !dev.ip) return { applied: false, verified: false, source: 'cache' };
-  // 小爱同学：KEYCODE_VOICE_ASSIST(231)，实测可达 com.xiaomi.voicecontrol
-  if (key === 'xiaoai') {
-    if (!dev.caps.some((c) => c.key === 'ADB')) return { applied: false, verified: false, source: 'cache' };
-    const adb = new AdbClient(dev.ip);
-    if (!(await adb.ensureConnected())) return { applied: false, verified: false, source: 'cache' };
-    await adb.shell('input keyevent 231');
-    return { applied: true, verified: false, source: 'device' };
-  }
+  // 小爱同学：软件模拟的四种路径（KEYCODE_VOICE_ASSIST 231 / KEYCODE_F5 142 /
+  // mitv.voice.KEYDOWN-KEYUP 广播 / 拉起 VoiceControlService）均真机实测无效——
+  // 实体遥控器走蓝牙链路，注入 /dev/input 需 root。保留分支便于未来接入。
+  if (key === 'xiaoai') return { applied: false, verified: false, source: 'cache' };
   if (!dev.caps.some((c) => c.key === '6095')) return { applied: false, verified: false, source: 'cache' };
   const { keyevent } = await import('../channels/mitv');
   await keyevent(dev.ip, key as never);
@@ -236,8 +232,8 @@ export async function readBacklight(id: string): Promise<number | null> {
     return vals[MTK_REGISTERS.backLight] ?? null;
   }
   if (dev.caps.some((c) => c.key === 'DDC')) {
-    const idx = await ddcIndexFor(id);
-    if (idx != null) return getLuminance(idx);
+    const target = await ddcTargetFor(id);
+    if (target) return helperLuminance(target.vendor, target.model);
   }
   return null;
 }

@@ -14,7 +14,6 @@ const REMOTE_KEYLIST = [
   { action: '菜单', keys: 'M' },
   { action: '电源', keys: 'P' },
   { action: '音量±', keys: '+ / −' },
-  { action: '小爱', keys: 'A' },
   { action: 'TV', keys: 'T' },
   { action: '退出接管', keys: 'Esc' },
 ];
@@ -22,7 +21,7 @@ const REMOTE_KEYLIST = [
 const REMOTE_KEYMAP: Record<string, [string, string]> = {
   ArrowUp: ['上', 'up'], ArrowDown: ['下', 'down'], ArrowLeft: ['左', 'left'], ArrowRight: ['右', 'right'],
   Enter: ['OK', 'enter'], Backspace: ['返回', 'back'], h: ['主页', 'home'], H: ['主页', 'home'],
-  m: ['菜单', 'menu'], M: ['菜单', 'menu'], a: ['小爱', 'xiaoai'], A: ['小爱', 'xiaoai'],
+  m: ['菜单', 'menu'], M: ['菜单', 'menu'],
   t: ['TV', 'home'], T: ['TV', 'home'], p: ['电源', 'power'], P: ['电源', 'power'],
   '+': ['音量+', 'volumeup'], '=': ['音量+', 'volumeup'], '-': ['音量-', 'volumedown'],
 };
@@ -74,7 +73,9 @@ export function ControlPanel() {
   const [lastKey, setLastKey] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [remoteActive, setRemoteActive] = useState(false);
+  const [lanToken, setLanToken] = useState('');
   const [showKeymap, setShowKeymap] = useState(false);
+  const [remoteOn, setRemoteOn] = useState(true);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [confirmingSource, setConfirmingSource] = useState<string | null>(null);
@@ -200,6 +201,11 @@ export function ControlPanel() {
     const cur = TABS.find((x) => x.id === tab);
     if (cur && cur.need && !capOf(d, cur.need)) setTab('quick');
   }
+  const copyText = (t: string) => {
+    try { navigator.clipboard && navigator.clipboard.writeText(t); } catch { /* 忽略 */ }
+    toast('已复制');
+  };
+
   function go(t: TabId) { setTab(t); setDetailId(null); }
 
   // ---------- 屏 ----------
@@ -269,8 +275,8 @@ export function ControlPanel() {
             <div className="rr-top">
               <button type="button" className="rrbtn rrpower" aria-label="电源" title="电源"
                 onClick={(e) => { e.stopPropagation(); setDlg({ text: '将使显示器进入待机。', onOk: () => press('电源', 'power') }); }}><Icon name="power" size={16} /></button>
-              <button type="button" className="rrbtn" aria-label="小爱同学" title="小爱同学（语音）"
-                onClick={(e) => { e.stopPropagation(); press('小爱', 'xiaoai'); }}><Icon name="sparkles" size={16} /></button>
+              <button type="button" className="rrbtn rrdisabled" aria-label="小爱同学" title="需实体遥控器（蓝牙链路）触发"
+                disabled><Icon name="sparkles" size={16} /></button>
             </div>
             <div className="rr-dpad">
               <button type="button" className="rredge up" aria-label="上" onClick={() => press('上', 'up')}><Icon name="chevronUp" size={15} /></button>
@@ -485,6 +491,7 @@ export function ControlPanel() {
   }
 
   function SettingsScreen() {
+    useEffect(() => { fetch('/api/token').then((r) => r.json() as Promise<{ token: string }>).then((d) => setLanToken(d.token)).catch(() => {}); }, []);
     return (
       <div data-screen-label="设置">
         <Card title="外观">
@@ -524,9 +531,18 @@ export function ControlPanel() {
           <pre className="codesnippet"><code>{'{\n  "mcpServers": {\n    "mitv": { "command": "bun", "args": ["run", "mcp"] }\n  }\n}'}</code></pre>
         </Card>
         <Card title="手机远程">
-          <Row label="地址" hint="同一 Wi-Fi 下浏览器打开；设置 MITV_TOKEN 环境变量后 API 需携带令牌">
+          <Row label="局域网访问" hint="开启后非本机来源需携带令牌（本机自动放行）">
+            <Toggle checked={remoteOn} onChange={(v) => { setRemoteOn(v); toast('手机远程已' + (v ? '开启' : '关闭')); }} />
+          </Row>
+          <Row label="地址" hint={remoteOn ? '同一 Wi-Fi 下浏览器打开' : '已关闭'}>
             <code className="code">http://192.168.0.251:8666</code>
-            <button type="button" className="mini" onClick={() => { navigator.clipboard?.writeText('http://192.168.0.251:8666').catch(() => {}); toast('已复制'); }}>复制</button>
+            <button type="button" className="mini" disabled={!remoteOn} onClick={() => { navigator.clipboard?.writeText('http://192.168.0.251:8666').catch(() => {}); toast('已复制'); }}>复制</button>
+          </Row>
+          <Row label="访问令牌" hint="手机/Agent 请求需携带（重生成后旧令牌失效）">
+            <code className="code">{lanToken ? lanToken.slice(0, 14) + '…' : '获取中…'}</code>
+            <button type="button" className="mini" disabled={!remoteOn} onClick={() => copyText(lanToken)}>复制</button>
+            <button type="button" className="mini" disabled={!remoteOn}
+              onClick={() => post('/api/token', { action: 'regenerate' }).then((t) => { setLanToken(String(t.token ?? '')); toast('已重新生成'); })}>重生成</button>
           </Row>
         </Card>
         <Card title="全局快捷键">

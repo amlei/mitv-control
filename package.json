@@ -12,7 +12,11 @@
     "format": "prettier --write .",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "desktop:build:main": "esbuild electron/main.ts electron/preload.ts --bundle --platform=node --external:electron --outdir=dist-electron",
+    "desktop": "electron dist-electron/main.js",
+    "desktop:pack": "next build && bun run desktop:build:main && electron-builder --dir",
+    "desktop:dist": "next build && bun run desktop:build:main && electron-builder"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
@@ -27,6 +31,9 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "prettier": "^3.9.10",
@@ -40,7 +47,9 @@
     "unrs-resolver"
   ],
   "trustedDependencies": [
+    "esbuild",
     "sharp",
     "unrs-resolver"
-  ]
+  ],
+  "main": "dist-electron/main.js"
 }

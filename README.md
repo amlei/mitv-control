@@ -92,9 +92,24 @@ Next.js 16（App Router，UI 与本地 API 同进程，SSE 推送状态）· Typ
 - 深度功能依赖 ADB，小米未来固件可能封堵（通道化设计：基础功能不受影响）
 - 本项目与小米/Redmi 无关，仅供学习与个人使用
 
+## 🖥️ 桌面客户端（Electron）
+
+```bash
+bun run build && bun run desktop:build:main   # Next standalone + 主进程编译
+ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ bunx electron-builder --dir
+./scripts/assemble-desktop.sh                  # 组装 standalone/resources/图标
+open "release/mac-arm64/MiTV 控制中心.app"
+```
+
+- 托盘常驻（关窗不退出，托盘菜单可唤出/退出）；单实例锁定
+- 内嵌 Next standalone 服务（Electron 自带 Node 运行，零外部依赖）与 ddc-helper
+- 首次运行自动把数据库模板落到 `~/Library/Application Support/mitv/`
+- 当前为未签名 dir 包（本机可用）；正式分发需开发者证书签名
+
 ## 🗺️ Roadmap
 
-- [ ] Electron 桌面壳（菜单栏/托盘常驻 + 开机自启 + 正式签名分发）
+- [x] Electron 桌面壳（托盘常驻 + 内嵌服务）
+- [ ] 开机自启 + 正式签名分发（dmg/NSIS 安装包）
 - [ ] PWA manifest 与局域网访问令牌
 - [ ] 自动任务（按时段套用预设）、HDR/SDR 联动
 - [ ] 小爱同学经 Home Assistant 桥接

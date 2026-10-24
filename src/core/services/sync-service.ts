@@ -38,9 +38,12 @@ export async function syncDeviceState(id: string): Promise<boolean> {
   if (!dev.ip || !dev.caps.some((c) => c.key === 'ADB')) {
     // 仅 DDC 的普通屏：尽力读亮度（DDC 读噪声大，只信 0-100 合法值）
     if (dev.caps.some((c) => c.key === 'DDC')) {
-      const { getLuminance } = await import('../channels/ddc');
-      const v = await getLuminance(0).catch(() => null);
-      if (v != null) stateHub.patch(id, { brightness: v, picture: { ...dev.picture, backlight: v } });
+      const { firstAckedChannel, helperLuminance } = await import('../channels/ddc');
+      const target = await firstAckedChannel();
+      if (target) {
+        const v = await helperLuminance(target.vendor, target.model).catch(() => null);
+        if (v != null) stateHub.patch(id, { brightness: v, picture: { ...(dev.picture ?? {}), backlight: v } });
+      }
     }
     return true;
   }
